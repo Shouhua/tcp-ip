@@ -28,6 +28,11 @@
 #define IPMSG_VERSION		        0x001
 #define IPMSG_PORT			0x979
 
+/*  IP Messenger Communication Protocol version 1.0 define  */
+/*  macro  */
+#define GET_MODE(command)	(command & 0x000000ffUL)
+#define GET_OPT(command)	(command & 0xffffff00UL)
+
 /*  command  */
 #define IPMSG_NOOPERATION		0x00000000UL
 
