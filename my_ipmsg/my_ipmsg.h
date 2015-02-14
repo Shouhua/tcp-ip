@@ -39,6 +39,11 @@ struct command {
 //    struct command *next;
 };
 
+struct msg {
+    char buff[COMM_LEN];
+    int len;
+};
+
 struct user {
     char *name;
     char *host;
@@ -52,6 +57,7 @@ struct user {
 int msock;
 int fsock;
 
+/* global varible */
 const int on = 1;
 char buff[COMM_LEN];
 struct sockaddr_in peer;

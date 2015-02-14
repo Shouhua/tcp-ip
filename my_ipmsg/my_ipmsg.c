@@ -1,8 +1,8 @@
 /*
-   This file is test the ipmsg protocol and this is a draft, i'll update later...
-   this version is mainly to test login and receive reply from another endian.
+info:
+    可以简单的实现登录, 对话, 但是还有reply的部分格式没有分解(reply >)
 Author: Shouhua Peng
-Date: 5/2/2015
+Date: 2/8/2015
 version: 0.2
 Tools: wiresharp, gcc, ipmsg(win and latest version), virtualbox and so on
  */
@@ -47,7 +47,7 @@ void init_msock()
     if(result < 0)
         printe("msock bind failed");
 
-    printf("init_msock success\n");
+    //printf("init_msock success\n");
 }
 
 struct command *new_comm()
@@ -84,19 +84,40 @@ void login()
 {
     int msg_len;
 
-    msg_len = snprintf(buff, COMM_LEN, "%d:%d:%s:%s:%u:%s", 
-        IPMSG_VERSION, (size_t)time(NULL), "shouhua", "192.168.31.164", (unsigned int)IPMSG_BR_ENTRY, "");
+    struct command *comm = new_comm();
+    if(comm == NULL)
+        printe("new_comm fialed");
+    memset(comm, 0, sizeof(comm));
+
+    //msg_len = snprintf(buff, COMM_LEN, "%d:%d:%s:%s:%u:%s", 
+    //    IPMSG_VERSION, (size_t)time(NULL), NAME, HOST, (unsigned int)IPMSG_BR_ENTRY, "");
 
     struct sockaddr_in baddr;
     baddr.sin_family = AF_INET;
     baddr.sin_port = htons(IPMSG_PORT);
     baddr.sin_addr.s_addr = htonl(INADDR_BROADCAST);
 
-    int result;
-    result = sendto(msock, buff, msg_len, 0, (struct sockaddr *)&baddr, sizeof(baddr));
-    if(result < 0)
-        printe("msock sendto failed"); 
-    printf("login success\n");
+    comm->comm_no = (unsigned int)IPMSG_BR_ENTRY;
+    comm->peer = baddr;
+    
+    comm2msg(comm);
+
+    if(send_msg() > 0)
+    {
+        free_comm(comm);
+        //printf("login success\n");
+    }
+    else
+    {
+        free_comm(comm);
+        printe("login failed");
+    }
+
+    //int result;
+    //result = sendto(msock, buff, msg_len, 0, (struct sockaddr *)&baddr, sizeof(baddr));
+    //if(result < 0)
+    //    printe("msock sendto failed"); 
+    //printf("login success\n");
 }
 
 void send_broadcast(){}
@@ -116,7 +137,7 @@ int recv_msg()
     
     peer = src;
     
-    printf("recv_msg success\n");
+    //printf("recv_msg success\n");
     return result;
 }
 /*
@@ -157,8 +178,13 @@ int parse_msg(struct command *comm)
     while(index < 5)
     {
         pos = memchr(msg, ':', remain);
-        *pos = '\0';
-        pos++;
+        if(pos == NULL)
+            break;
+        while(*pos == ':')
+        {
+            *pos = '\0';
+            pos++;
+        }
 
         switch(index)
         {
@@ -189,7 +215,7 @@ int parse_msg(struct command *comm)
     strncpy(comm->additional, msg, MSG_LEN);
     comm->peer = peer;
     //comm->additional = msg;
-    printf("parse_msg success\n");
+    //printf("parse_msg success\n");
     return 0;
 }
 
@@ -227,21 +253,36 @@ int comm2msg(struct command *comm)
     result = snprintf(buff, COMM_LEN, "%d:%u:%s:%s:%u:%s", 
             1, packet_no, NAME, HOST, (unsigned int)comm->comm_no, comm->additional);
 
-    printf("comm2msg success\n");
+    peer = comm->peer;
+    //printf("comm2msg success\n");
     return result;    
 }
 
-int send_msg(struct command *comm)
+//int send_msg(struct command *comm)
+int send_msg()
 {
-    int len;
+    //int len;
     int result;
-    len = comm2msg(comm);
-    result = sendto(msock, buff, len, 0, (struct sockaddr *)&(comm->peer), sizeof(comm->peer));
+    //len = comm2msg(comm);
+    //result = sendto(msock, buff, len, 0, (struct sockaddr *)&(comm->peer), sizeof(comm->peer));
+    result = sendto(msock, buff, strlen(buff), 0, (struct sockaddr *)&peer, sizeof(peer));
     if(result < 0)
         printe("sendto failed");
     
-    printf("send_msg success\n");
+    //printf("send_msg success\n");
     return result;
+}
+
+void delete_newline(char *str, char c, char r)
+{
+    int i = 0;
+    //printf("strlen(str) = %d\n", strlen(str));
+    for(;i < strlen(str); i++)
+    {
+        if(str[i] == c)
+            str[i] = r;
+        
+    }
 }
 
 void dispose_msock()
@@ -262,15 +303,31 @@ void dispose_msock()
     
     comm_mode = GET_MODE(comm->comm_no);
     comm_opt  = GET_OPT(comm->comm_no);
+    
+    char msg[MSG_LEN];
+    int comm_no;
+
+    strncpy(msg, comm->additional, MSG_LEN);
+    comm_no = (unsigned int)comm->comm_no;
 
     if(comm_opt & IPMSG_SENDCHECKOPT)
     {
-        comm->packet_no = (unsigned int)time(NULL);
-        comm->comm_no = IPMSG_RECVMSG;
-        snprintf(comm->additional, MSG_LEN, "%d", comm->packet_no);
-        send_msg(comm);
-    }
+      //  printf("IPMSG_SENDCHECKOPT\n");
+      //  comm->packet_no = (unsigned int)time(NULL);
+      //  struct command *comm1 = new_comm();
+      //  memset(comm1, 0, sizeof(*comm1));
+      //  memcpy(comm1, comm, sizeof(*comm));//容易犯错误 sizeof(comm) = 4
+        
+        strncpy(msg, comm->additional, MSG_LEN);
+        comm_no = (unsigned int)comm->comm_no;
 
+        comm->comm_no = (unsigned int)IPMSG_RECVMSG;
+        snprintf(comm->additional, MSG_LEN, "%d", comm->packet_no);
+        comm2msg(comm);
+        send_msg();
+     //   free_comm(comm1);
+    }
+    
     switch(comm_mode)
     {
         case IPMSG_ANSENTRY:
@@ -281,12 +338,17 @@ void dispose_msock()
             printf("get IPMSG_BR_ENTRY\n");
             comm->comm_no = IPMSG_ANSENTRY;
             snprintf(comm->additional, MSG_LEN, "%s", NAME);
-            send_msg(comm);
+            comm2msg(comm);
+            send_msg();
             //Update user
             break;
         case IPMSG_BR_EXIT:
-            printf("get IPMSG_BR_EXIT");
+            printf("get IPMSG_BR_EXIT\n");
             //Update user
+            break;
+        case IPMSG_SENDMSG:
+            delete_newline(msg, '\n', '\a');
+            printf("message %s from %s\n", msg, comm->s_name);
             break;
         default:
             break;
@@ -294,15 +356,58 @@ void dispose_msock()
     free_comm(comm);
 }
 
+void dispose_input()
+{
+    //char input[1024];
+    memset(buff, 0, sizeof(buff));
+    fgets(buff, sizeof(buff), stdin);
+    /*
+    int i;
+    for(i=0; i<sizeof(buff); i++)
+    {
+        if(buff[i] == '\n')
+        {
+            buff[i] = '\0';
+//            printf("there have a '\\n' in index: %d\n", i);
+            break;
+        }
+
+    }
+  */
+    delete_newline(buff, '\n', '\a');
+    struct command *comm2 = new_comm();
+    if(comm2 == NULL)
+    {
+        printe("new_comm in dispose_input failed");    
+    }
+    memset(comm2, 0, sizeof(comm2));
+
+    struct sockaddr_in baddr;
+    baddr.sin_family = AF_INET;
+    baddr.sin_port = htons(IPMSG_PORT);
+    baddr.sin_addr.s_addr = htonl(INADDR_BROADCAST);
+
+    comm2->comm_no = (unsigned int)(IPMSG_SENDMSG | IPMSG_SENDCHECKOPT);
+    snprintf(comm2->additional, MSG_LEN, "%s", buff);
+    comm2->peer = baddr;
+    comm2msg(comm2);
+    send_msg();
+
+    //printf("dispose_input success");
+    free_comm(comm2);
+}
+
 void dispatch()
 {
     int fd_max;
     fd_set rsets;
-    while(1)
+    for(;;)
     {
         FD_ZERO(&rsets);
         FD_SET(msock, &rsets);
         fd_max = msock + 1;
+        
+        FD_SET(STDIN_FILENO, &rsets);
 
         result = select(fd_max, &rsets, NULL, NULL, (struct timeval *)0);
         if(result == -1)
@@ -316,6 +421,12 @@ void dispatch()
         if(FD_ISSET(msock, &rsets))
         {
             dispose_msock();    
+        }
+
+        if(FD_ISSET(STDIN_FILENO, &rsets))
+        {
+            //fgets(input, sizeof(input), stdin);
+            dispose_input();
         }
     }
 }
