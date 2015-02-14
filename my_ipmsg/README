@@ -1,3 +1,9 @@
 This directory is mainly to implement ipmsg protocol in linux platform, i'll update soon.
 If you find anything wrong, please feel free to contact me.
 email: psh09@163.com
+
+make clean
+make
+./my_ipmsg
+可以与局域网中ipmsg终端尝试通信, 比较简陋, 后期会持续的更新.
+发现已经不是协议的理解问题了, 而是架构怎么搭建的问题了...
